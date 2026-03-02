@@ -46,6 +46,7 @@ export default function SpendingIntelligencePage() {
 
   const [files, setFiles] = useState<File[]>([]);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const [hasGeneratedInsights, setHasGeneratedInsights] = useState(false);
 
   const [selectedMonth, setSelectedMonth] = useState<string>(() => {
     const now = new Date();
@@ -152,7 +153,15 @@ useEffect(() => {
         throw new Error(errMsg || "Upload failed.");
       }
 
-      setResult(data as UploadAiResponse);
+      setResult({
+  ...data,
+  ai: {
+    ...data.ai,
+    insights: undefined,
+  },
+});
+
+setHasGeneratedInsights(false);
 	  console.log("UPLOAD RESPONSE:", data);
       clearFiles();
       setMessage(`File uploaded successfully. AI analysis complete for ${formatMonthLabel(selectedMonth)}.`);
@@ -202,11 +211,12 @@ async function handleRegenerateInsights() {
             ...prev,
             ai: {
               ...prev.ai,
-              insights: data.insights,
+              insights: data.ai?.insights ?? data.insights ?? data,
             },
           }
         : prev
     );
+	setHasGeneratedInsights(true);
   } catch (err: any) {
     console.error(err);
   } finally {
@@ -700,94 +710,101 @@ function sum(arr: AiMerchant[]) {
               Source file: {result!.filename}
             </div>
 
-            {(hasStructuredInsights || hasLegacyNotes) && (
-              <div style={{ marginTop: 16, fontSize: 13, opacity: 0.95 }}>
-                <div style={{ fontWeight: 900, marginBottom: 8 }}>AI Insights</div>
-				<button
-  onClick={handleRegenerateInsights}
-  disabled={regenerating}
-  style={{
-    marginBottom: 12,
-    padding: "6px 10px",
-    fontSize: 12,
-    cursor: regenerating ? "not-allowed" : "pointer",
-    opacity: regenerating ? 0.7 : 1,
-  }}
->
-  {regenerating ? "Regenerating..." : "🔁 Regenerate Insights"}
-</button>
+   {/* Generate Button ALWAYS visible */}
+<div style={{ marginTop: 16 }}>
+  <button
+    onClick={handleRegenerateInsights}
+    disabled={regenerating}
+    style={{
+      marginBottom: 12,
+      padding: "6px 10px",
+      fontSize: 12,
+      cursor: regenerating ? "not-allowed" : "pointer",
+      opacity: regenerating ? 0.7 : 1,
+    }}
+  >
+    {regenerating ? "Generating..." : "✨ Generate Insights"}
+  </button>
 
-                {hasStructuredInsights ? (
-                  <div style={{ lineHeight: 1.55 }}>
-                    {hasAny(insights?.highlights) && (
-                      <ul style={{ marginTop: 0, marginBottom: 10, paddingLeft: 18 }}>
-                        {insights!.highlights!.map((h, idx) => (
-                          <li key={`hl-${idx}`}>{h}</li>
-                        ))}
-                      </ul>
-                    )}
+  {/* Insights only AFTER user clicks */}
+  {hasGeneratedInsights && (hasStructuredInsights || hasLegacyNotes) && (
+    <div style={{ fontSize: 13, opacity: 0.95 }}>
+      <div style={{ fontWeight: 900, marginBottom: 8 }}>
+        AI Insights
+      </div>
 
-                    {(insights?.topSpendingCategory || insights?.topMerchant) && (
-                      <div style={{ marginBottom: 10 }}>
-                        {insights?.topSpendingCategory && (
-                          <div>
-                            <b>Top category:</b> {insights.topSpendingCategory}
-                          </div>
-                        )}
-                        {insights?.topMerchant && (
-                          <div>
-                            <b>Top merchant:</b> {insights.topMerchant}
-                          </div>
-                        )}
-                      </div>
-                    )}
+      {hasStructuredInsights ? (
+        <div style={{ lineHeight: 1.55 }}>
+          {hasAny(insights?.highlights) && (
+            <ul style={{ marginTop: 0, marginBottom: 10, paddingLeft: 18 }}>
+              {insights!.highlights!.map((h, idx) => (
+                <li key={`hl-${idx}`}>{h}</li>
+              ))}
+            </ul>
+          )}
 
-                    {hasAny(insights?.concentrationNotes) && (
-                      <div style={{ marginBottom: 10 }}>
-                        <div style={{ fontWeight: 800, marginBottom: 4 }}>
-                          Concentration
-                        </div>
-                        <ul style={{ marginTop: 0, marginBottom: 0, paddingLeft: 18 }}>
-                          {insights!.concentrationNotes!.map((n, idx) => (
-                            <li key={`cn-${idx}`}>{n}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
+          {(insights?.topSpendingCategory || insights?.topMerchant) && (
+            <div style={{ marginBottom: 10 }}>
+              {insights?.topSpendingCategory && (
+                <div>
+                  <b>Top category:</b> {insights.topSpendingCategory}
+                </div>
+              )}
+              {insights?.topMerchant && (
+                <div>
+                  <b>Top merchant:</b> {insights.topMerchant}
+                </div>
+              )}
+            </div>
+          )}
 
-                    {hasAny(insights?.optimizationIdeas) && (
-                      <div style={{ marginBottom: 10 }}>
-                        <div style={{ fontWeight: 800, marginBottom: 4 }}>
-                          Optimization ideas
-                        </div>
-                        <ul style={{ marginTop: 0, marginBottom: 0, paddingLeft: 18 }}>
-                          {insights!.optimizationIdeas!.map((n, idx) => (
-                            <li key={`op-${idx}`}>{n}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-
-                    {hasAny(insights?.anomalies) && (
-                      <div style={{ marginBottom: 0 }}>
-                        <div style={{ fontWeight: 800, marginBottom: 4 }}>
-                          Anomalies
-                        </div>
-                        <ul style={{ marginTop: 0, marginBottom: 0, paddingLeft: 18 }}>
-                          {insights!.anomalies!.map((n, idx) => (
-                            <li key={`an-${idx}`}>{n}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.55 }}>
-                    {result!.ai.notes}
-                  </div>
-                )}
+          {hasAny(insights?.concentrationNotes) && (
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ fontWeight: 800, marginBottom: 4 }}>
+                Concentration
               </div>
-            )}
+              <ul style={{ marginTop: 0, marginBottom: 0, paddingLeft: 18 }}>
+                {insights!.concentrationNotes!.map((n, idx) => (
+                  <li key={`cn-${idx}`}>{n}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {hasAny(insights?.optimizationIdeas) && (
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ fontWeight: 800, marginBottom: 4 }}>
+                Optimization ideas
+              </div>
+              <ul style={{ marginTop: 0, marginBottom: 0, paddingLeft: 18 }}>
+                {insights!.optimizationIdeas!.map((n, idx) => (
+                  <li key={`op-${idx}`}>{n}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {hasAny(insights?.anomalies) && (
+            <div style={{ marginBottom: 0 }}>
+              <div style={{ fontWeight: 800, marginBottom: 4 }}>
+                Anomalies
+              </div>
+              <ul style={{ marginTop: 0, marginBottom: 0, paddingLeft: 18 }}>
+                {insights!.anomalies!.map((n, idx) => (
+                  <li key={`an-${idx}`}>{n}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.55 }}>
+          {result!.ai.notes}
+        </div>
+      )}
+    </div>
+  )}
+</div>
           </div>
         </div>
       )}
