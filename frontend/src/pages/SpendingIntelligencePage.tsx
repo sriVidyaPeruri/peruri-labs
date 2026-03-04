@@ -26,7 +26,8 @@ type AiResult = {
   totalExpenses: number;
   billPaymentsTotal?: number;
   payrollTotal?: number;
-  netCashFlow?: number;   // 👈 ADD THIS
+  netCashFlow?: number;
+  transfersTotal?: number;  
   categories: AiCategory[];
   notes?: string;
   insights?: AiInsights;
