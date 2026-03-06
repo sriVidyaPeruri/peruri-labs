@@ -26,9 +26,11 @@ public class AiInsightsService {
             if (model == null || model.isBlank())
                 throw new IllegalStateException("Missing ANTHROPIC_MODEL");
 
-            System.out.println("Using Anthropic model (insights): " + model);
+           // System.out.println("Using Anthropic model (insights): " + model);
 
             String json = objectMapper.writeValueAsString(summary);
+			
+		//	System.out.println("json:::: " + json);
 
 String prompt = """
 You are a personal financial coach analyzing a single month's spending.
@@ -36,44 +38,6 @@ You are a personal financial coach analyzing a single month's spending.
 Your goal is NOT to summarize the report.
 Your goal is to identify where money is going, what is controllable, and how the user could realistically save more.
 
-Interpretation rules:
-- Only treat categories representing actual spending as spending behavior.
-- Ignore refunds, payroll, transfers, bill payments, and investments when determining spending patterns.
-- Refunds represent returned money and should not influence top categories or merchants.
-- Transfers and bill payments represent movement of money between accounts, not spending.
-
-Spending classification rules:
-
-- Only use categories representing actual spending behavior.
-- Ignore the category named "Refunds".
-- Ignore any incoming money such as Zelle payments, reimbursements, or refunds.
-- Ignore payroll, transfers, bill payments, and investments when identifying top spending categories or merchants.
-- Top category and top merchant MUST come from spending categories only.
-
-Merchant rules:
-- Focus on merchants where money was actually spent (restaurants, stores, services).
-- Do not treat financial institutions, transfers, or payment processors as merchants.
-
-Focus on:
-- Largest spending drivers
-- Fixed vs discretionary spending
-- High-frequency small transactions
-- Concentration in specific merchants
-- Clear, quantified savings opportunities
-- Behavioral patterns (habits)
-- Any unusual spikes or irregularities
-
-When analyzing habits:
-- Identify repeat merchants that indicate behavioral spending patterns.
-- Highlight subscriptions or recurring charges if present.
-- Distinguish between lifestyle spending and essential bills.
-
-Avoid:
-- Repeating totals already visible in the report
-- Describing categories mechanically
-- Overemphasizing transfers or internal payments
-- Treating refunds or incoming payments as spending
-- Generic advice like "review your spending"
 
 When suggesting savings, quantify impact if possible (e.g., reducing dining frequency by 25% could save approximately $X per month).
 
@@ -88,17 +52,39 @@ Return STRICT JSON only (no markdown):
   "anomalies": [string]
 }
 
-Summary:
-""" + json;
+CRITICAL OUTPUT RULES:
 
-            Map<String, Object> body = Map.of(
-                    "model", model,
-                    "max_tokens", 600,
-                    "temperature", 0.3,
-                    "messages", List.of(
-                            Map.of("role", "user", "content", prompt)
-                    )
-            );
+- The value of "topSpendingCategory" MUST be one of the category names present in the provided categories list.
+- The value of "topMerchant" MUST be one of the merchants present in the provided merchant lists.
+- Do NOT invent or infer categories that are not present in the input data.
+- Categories such as "Refunds", "Transfers", "Payroll", or "Bill Payments" MUST NEVER appear in the output unless they exist in the categories list.
+- If a category is not present in the categories list, it must not appear anywhere in the response.
+
+Dataset (JSON):
+""" + json + """
+
+IMPORTANT:
+
+- The dataset above is the ONLY source of truth.
+- Only use categories that exist in the dataset.
+- Only use merchants that exist in the dataset.
+- Do NOT invent categories or merchants.
+- If "Refunds" is not present in the dataset, it must never appear in the output.
+
+""";
+
+Map<String, Object> body = Map.of(
+        "model", model,
+        "max_tokens", 600,
+        "temperature", 0,
+        "system", "You are a financial data analyst. Only analyze the dataset provided. Never invent categories or merchants.",
+        "messages", List.of(
+                Map.of(
+                        "role", "user",
+                        "content", prompt
+                )
+        )
+);
 
             Map<String, Object> resp = restClient.post()
                     .uri("https://api.anthropic.com/v1/messages")
@@ -113,9 +99,18 @@ Summary:
                 throw new IllegalStateException("Invalid Anthropic response");
 
             List<?> content = (List<?>) resp.get("content");
-            Map<?, ?> first = (Map<?, ?>) content.get(0);
 
-            String raw = String.valueOf(first.get("text")).trim();
+StringBuilder sb = new StringBuilder();
+
+for (Object obj : content) {
+    Map<?, ?> part = (Map<?, ?>) obj;
+    Object text = part.get("text");
+    if (text != null) {
+        sb.append(text.toString());
+    }
+}
+
+String raw = sb.toString().trim();
 
             // Remove markdown fences if Claude adds them
             if (raw.startsWith("```")) {
@@ -123,7 +118,7 @@ Summary:
                 raw = raw.replaceAll("\\s*```$", "");
                 raw = raw.trim();
             }
-
+//System.out.println("Claude raw response: " + raw);
             return objectMapper.readValue(
                     raw,
                     new TypeReference<>() {}

@@ -250,28 +250,7 @@ const derivedTotalExpenses = useMemo(() => {
   return derivedCategories.reduce((sum, c) => sum + c.total, 0);
 }, [derivedCategories]);
 
-const derivedInsights = useMemo(() => {
-  if (!derivedCategories.length) return null;
-
-  const sorted = [...derivedCategories].sort((a, b) => b.total - a.total);
-
-  const topCategory = sorted[0];
-
-  let topMerchant: { merchant: string; amount: number } | null = null;
-
-  for (const c of derivedCategories) {
-    for (const m of c.merchants || []) {
-      if (!topMerchant || m.amount > topMerchant.amount) {
-        topMerchant = m;
-      }
-    }
-  }
-
-  return {
-    topSpendingCategory: topCategory?.category,
-    topMerchant: topMerchant?.merchant,
-  };
-}, [derivedCategories]);
+const derivedInsights = null;
 
   const insights: AiInsights | null = useMemo(() => {
   if (!result?.ai?.insights && !derivedInsights) return null;

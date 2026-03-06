@@ -86,13 +86,13 @@ public class TransactionsService {
                 continue;
             }
 if (isTransfer(desc)) {
-
-    System.out.println("==== TRANSFER MATCH ====");
+////////Debug start
+   /* System.out.println("==== TRANSFER MATCH ====");
     System.out.println("Date: " + t.date());
     System.out.println("Description: " + desc);
     System.out.println("Raw Amount: " + amt);
-    System.out.println("========================");
-
+    System.out.println("========================");*/
+///////////Debug end
     String s = desc.toLowerCase(Locale.ROOT);
 
     // Credit card payments → Bill Payment system bucket
@@ -137,7 +137,7 @@ System.out.println("##########################################");*/
             throw new IllegalArgumentException("No usable transactions found.");
         }
 /////////////////////Debug Start
-System.out.println("==== ITEMS BEING SENT TO AI FOR CATEGORIZATION ====");
+/*System.out.println("==== ITEMS BEING SENT TO AI FOR CATEGORIZATION ====");
 
 for (Map<String, Object> item : items) {
     System.out.println(
@@ -150,7 +150,7 @@ for (Map<String, Object> item : items) {
 }
 
 System.out.println("Total items sent to AI: " + items.size());
-System.out.println("==== END OF ITEMS SENT TO AI ====");
+System.out.println("==== END OF ITEMS SENT TO AI ====");*/
 
 ////////////////////Debug End
         // ✅ Real AI categorization restored
@@ -231,11 +231,6 @@ System.out.println("==== END OF ITEMS SENT TO AI ====");
 		aiOut.put("netCashFlow", netCashFlow);
 		aiOut.put("investmentsTotal", investmentsTotal);
 		aiOut.put("transfersTotal", transfersTotal);
-        // ✅ Real AI insights restored
-        Map<String, Object> insights =
-                insightsService.generateInsights(aiOut);
-
-        aiOut.put("insights", insights);
 
         Map<String, Object> result = new HashMap<>();
         result.put("ok", true);
@@ -300,7 +295,8 @@ public Map<String, Object> regenerateInsights(Map<String, Object> payload) {
     BigDecimal netCashFlow = payrollTotal.subtract(totalExpenses);
 	BigDecimal transfersTotal = new BigDecimal(String.valueOf(payload.getOrDefault("transfersTotal", "0")));
 
-    Map<String, Object> aiOut = new HashMap<>();
+	
+	Map<String, Object> aiOut = new HashMap<>();
     aiOut.put("categories", rebuiltCategories);
     aiOut.put("grossSpend", grossSpend);
     aiOut.put("refundsTotal", refundsTotal);
@@ -310,8 +306,26 @@ public Map<String, Object> regenerateInsights(Map<String, Object> payload) {
     aiOut.put("payrollTotal", payrollTotal);
     aiOut.put("netCashFlow", netCashFlow);
 
-    Map<String, Object> insights =
-            insightsService.generateInsights(aiOut);
+    List<Map<String, Object>> categoriesForInsights = rebuiltCategories.stream()
+        .filter(c -> !"Refunds".equalsIgnoreCase(String.valueOf(c.get("category"))))
+        .toList();
+
+		
+	Map<String, Object> aiInput = new HashMap<>();
+aiInput.put("categories", categoriesForInsights);
+aiInput.remove("refundsTotal");
+
+
+		
+	Map<String, Object> insights =
+            insightsService.generateInsights(aiInput);
+			
+if ("Refunds".equalsIgnoreCase(String.valueOf(insights.get("topSpendingCategory")))) {
+    insights.put("topSpendingCategory", "N/A");
+}
+if (String.valueOf(insights.get("topMerchant")).toLowerCase().contains("zelle")) {
+    insights.put("topMerchant", "N/A");
+}			
 
     aiOut.put("insights", insights);
 
