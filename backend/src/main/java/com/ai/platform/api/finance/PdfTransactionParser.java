@@ -24,7 +24,7 @@ public class PdfTransactionParser {
             Pattern.compile("-?[\\d,]+\\.\\d{2}");
 	
 	private static final Pattern DATE_LINE =
-        Pattern.compile("^\\d{2}/\\d{2}/\\d{2}");
+		Pattern.compile("^\\d{2}/\\d{2}(/\\d{2})?");
 		
     public List<Txn> parsePdf(List<MultipartFile> files, String monthKey) {
 
@@ -52,12 +52,29 @@ public class PdfTransactionParser {
                 int targetMonth = Integer.parseInt(monthKey.substring(5, 7));
 
                 LocalDate currentDate = null;
-StringBuilder descBuilder = new StringBuilder();
+				StringBuilder descBuilder = new StringBuilder();
+				boolean paymentsSection = false;
+				boolean purchasesSection = false;
 
 for (String line : lines) {
 
     String clean = line.trim();
     if (clean.isEmpty()) continue;
+	
+	String lower = clean.toLowerCase();
+
+	if (lower.contains("payments and other credits")) {
+		paymentsSection = true;
+		purchasesSection = false;
+		continue;
+	}
+
+	if (lower.contains("purchases and adjustments")) {
+		paymentsSection = false;
+		purchasesSection = true;
+		continue;
+	}
+
 	
 	if (clean.toLowerCase().startsWith("total")) continue;
 
@@ -85,11 +102,27 @@ if (dateMatcher.find()) {
         BigDecimal amount = new BigDecimal(amtStr);
 
         if (isCreditCard) {
-            amount = amount.negate();
-        }
+
+		if (purchasesSection) {
+			amount = amount.abs().negate();   // purchases → negative
+		}
+
+		if (paymentsSection) {
+			amount = amount.abs();            // payments → positive
+		}
+	}
 
         String desc = clean.substring(dateMatcher.end(), amtMatcher.start()).trim();
 
+/////////////Debug start
+/*System.out.println(
+    "PDF_TXN | Section=" +
+    (paymentsSection ? "PAYMENTS" : purchasesSection ? "PURCHASES" : "UNKNOWN") +
+    " | Date=" + date +
+    " | Desc=" + desc +
+    " | Amount=" + amount
+);*/
+/////////////Debug end
         txns.add(new Txn(date, desc, amount));
         currentDate = null;
         descBuilder.setLength(0);
@@ -117,8 +150,15 @@ if (dateMatcher.find()) {
         BigDecimal amount = new BigDecimal(amtStr);
 
         if (isCreditCard) {
-            amount = amount.negate();
-        }
+
+		if (purchasesSection) {
+			amount = amount.abs().negate();   // purchases → negative
+		}
+
+		if (paymentsSection) {
+			amount = amount.abs();            // payments → positive
+		}
+	}
 
         String desc = descBuilder.toString().trim();
 

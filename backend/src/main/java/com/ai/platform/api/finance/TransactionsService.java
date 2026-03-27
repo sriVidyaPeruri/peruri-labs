@@ -100,7 +100,7 @@ public class TransactionsService {
 			throw new IllegalArgumentException("No supported files found. Upload CSV or PDF statements.");
 		}
 		////////////Debug start
-System.out.println("Total transactions parsed before month filter: " + txnsAll.size());		
+/*System.out.println("Total transactions parsed before month filter: " + txnsAll.size());		
 System.out.println("\n===== RAW PARSED TRANSACTIONS =====");
 
 for (Txn t : txnsAll) {
@@ -111,7 +111,7 @@ for (Txn t : txnsAll) {
     );
 }
 
-System.out.println("===== END RAW =====\n");
+System.out.println("===== END RAW =====\n");*/
 ////////////Debug end
 		
 
@@ -119,7 +119,7 @@ System.out.println("===== END RAW =====\n");
         List<Txn> txns = filterTxnsToMonth(txnsAll, monthKey);
 		
 ////////////Debug start
-System.out.println("\n===== AFTER MONTH FILTER =====");
+/*System.out.println("\n===== AFTER MONTH FILTER =====");
 
 for (Txn t : txns) {
     System.out.println(
@@ -129,7 +129,7 @@ for (Txn t : txns) {
     );
 }
 System.out.println("===== END MONTH FILTER =====\n");
-System.out.println("Transactions after month filter: " + txns.size());
+System.out.println("Transactions after month filter: " + txns.size());*/
 		////////////Debug end
 		
 		
@@ -142,11 +142,11 @@ System.out.println("Transactions after month filter: " + txns.size());
 
         for (Txn t : txns) {
 ////Debug start
-System.out.println(
+/*System.out.println(
         "PROCESSING | Date=" + t.date() +
         " | Desc=" + t.description() +
         " | Amount=" + t.amount()
-    );
+    );*/
 ////Debug end
             String desc = t.description();
             BigDecimal amt = t.amount();
@@ -155,7 +155,7 @@ System.out.println(
 
             if (amt.compareTo(BigDecimal.ZERO) > 0 && isPayroll(desc)) {
 				
-				 System.out.println("REMOVED_PAYROLL | " + desc + " | " + amt);
+				// System.out.println("REMOVED_PAYROLL | " + desc + " | " + amt);
 				 
 				 
                 payrollTotal = payrollTotal.add(amt);
@@ -164,14 +164,37 @@ System.out.println(
 if (isTransfer(desc)) {
 
     String s = desc.toLowerCase(Locale.ROOT);
+	
+	////Debug start
+/*	System.out.println(
+        "TRANSFER_DETECTED | Desc=" + desc +
+        " | Amount=" + amt
+    );*/
+	////Debug end
 
     // Credit card payments → Bill Payment system bucket
     if (s.contains("credit card") || s.contains("payment - thank you") || s.contains("ach pmt")) {
 		
-		 System.out.println("REMOVED_TRANSFER | " + desc + " | " + amt);
+		///////Debug start
+	/*	 System.out.println("REMOVED_TRANSFER | " + desc + " | " + amt);
+		     System.out.println(
+            "TRANSFER_CLASSIFIED | Type=CREDIT_CARD_PAYMENT" +
+            " | Desc=" + desc +
+            " | Amount=" + amt
+        );*/
+		 ////Debug end
 		 
         if (amt.compareTo(BigDecimal.ZERO) < 0) {
             transfersTotal = transfersTotal.add(amt.abs());
+			
+			//////Debug start
+		/*	System.out.println(
+                "BUCKET_ADD | Bucket=TRANSFER_TOTAL" +
+                " | Desc=" + desc +
+                " | Amount=" + amt.abs() +
+                " | RunningTotal=" + transfersTotal
+            );*/
+			/////Debug end
         }
         continue;
     }
@@ -180,7 +203,7 @@ if (isTransfer(desc)) {
 }
 			if (isInvestment(desc)) {
 				
-				System.out.println("REMOVED_INVESTMENT | " + desc + " | " + amt);
+				//System.out.println("REMOVED_INVESTMENT | " + desc + " | " + amt);
 				
 				investmentsTotal = investmentsTotal.add(amt.abs());
 				continue;
@@ -196,16 +219,17 @@ if (isTransfer(desc)) {
             m.put("id", ++id);
 			
 			//////////////////Debug start
-			System.out.println(
+		/*	System.out.println(
     "AI_INPUT | ID=" + id +
     " | Merchant=" + desc +
     " | Amount=" + value +
     " | Kind=" + kind
-);
+);*/
 			
 			/////////////////Debug end
             m.put("date", t.date().toString());
-            m.put("merchant", desc);
+            //m.put("merchant", desc);
+			m.put("merchant", sanitizeAndExtractMerchant(desc));
             m.put("amount", value);
             m.put("kind", kind);
 
@@ -225,7 +249,7 @@ if (isTransfer(desc)) {
         Map<Integer, Item> idToItem = buildIdToItem(items);
 		
 ////////////////Debug start
-System.out.println("\n===== TRANSACTION DEBUG =====");
+/*System.out.println("\n===== TRANSACTION DEBUG =====");
 
 for (int tid = 1; tid <= items.size(); tid++) {
 
@@ -243,7 +267,7 @@ for (int tid = 1; tid <= items.size(); tid++) {
     );
 }
 
-System.out.println("===== END TRANSACTION DEBUG =====\n");
+System.out.println("===== END TRANSACTION DEBUG =====\n");*/
 
 ///////////////Debug end		
 
@@ -264,6 +288,15 @@ System.out.println("===== END TRANSACTION DEBUG =====\n");
 
             if ("expense".equals(it.kind())) grossSpend = grossSpend.add(it.amount());
             if ("refund".equals(it.kind())) refundsTotal = refundsTotal.add(it.amount());
+			
+			/////////Debug start
+		/*	System.out.println(
+            "BUCKET_ADD | Bucket=REFUND" +
+            " | ID=" + tid +
+            " | Merchant=" + it.merchant() +
+            " | Amount=" + it.amount()
+        );*/
+			////////Debug end
         }
 
         List<Map<String, Object>> categoriesOut = new ArrayList<>();
@@ -333,6 +366,8 @@ public Map<String, Object> regenerateInsights(Map<String, Object> payload) {
 
     List<Map<String, Object>> categories =
             (List<Map<String, Object>>) payload.get("categories");
+			
+	sanitizeCategories(payload);		
 
     if (categories == null || categories.isEmpty()) {
         throw new IllegalArgumentException("No categories provided.");
@@ -403,7 +438,7 @@ public Map<String, Object> regenerateInsights(Map<String, Object> payload) {
 aiInput.put("categories", categoriesForInsights);
 aiInput.remove("refundsTotal");
 
-
+	sanitizeCategories(aiInput);
 		
 	Map<String, Object> insights =
             insightsService.generateInsights(aiInput);
@@ -483,9 +518,9 @@ private boolean isInvestment(String desc) {
     if (s.contains("robinhood")) return true;
     if (s.contains("schwab")) return true;
     if (s.contains("brokerage")) return true;
-    if (s.contains("ira")) return true;
-    if (s.contains("401k")) return true;
-    if (s.contains("trader funding")) return true;
+    if (s.matches(".*\\bira\\b.*")) return true;
+    if (s.matches(".*\\b401k\\b.*")) return true;
+    //if (s.contains("trader funding")) return true;
 
     return false;
 }
@@ -498,6 +533,56 @@ private boolean isInvestment(String desc) {
         if (names.size() == 1) return names.get(0);
         return names.size() + " files";
     }
+private String sanitizeAndExtractMerchant(String desc) {
+    if (desc == null) return "Unknown";
+
+    String s = desc;
+
+    // Remove long numbers (account/card numbers)
+    s = s.replaceAll("\\b\\d{6,}\\b", "");
+
+    // Remove common person-to-person patterns (Zelle, etc.)
+    s = s.replaceAll("(?i)(zelle|to|from)\\s+[A-Z][a-z]+\\s+[A-Z][a-z]+", "$1 ****");
+
+    // Trim and reduce to first 3 words max
+    s = s.trim();
+    String[] parts = s.split("\\s+");
+
+    StringBuilder out = new StringBuilder();
+    for (int i = 0; i < Math.min(parts.length, 3); i++) {
+        out.append(parts[i]).append(" ");
+    }
+
+    String result = out.toString().trim();
+
+    return result.isEmpty() ? "Unknown" : result;
+}
+
+private void sanitizeCategories(Map<String, Object> aiInput) {
+
+    List<Map<String, Object>> categories =
+            (List<Map<String, Object>>) aiInput.get("categories");
+
+    if (categories == null) return;
+
+    for (Map<String, Object> cat : categories) {
+
+        List<Map<String, Object>> merchants =
+                (List<Map<String, Object>>) cat.get("merchants");
+
+        if (merchants == null) continue;
+
+        for (Map<String, Object> m : merchants) {
+
+            String merchant = String.valueOf(m.get("merchant"));
+
+            // reuse your existing sanitizer
+            String cleaned = sanitizeAndExtractMerchant(merchant);
+
+            m.put("merchant", cleaned);
+        }
+    }
+}
 
     private record Item(String merchant, BigDecimal amount, String kind) {}
 }
